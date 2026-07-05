@@ -413,6 +413,11 @@
         .logbook { padding: 0 0.65rem 0.75rem; }
         /* Bearbeitungsrechte: fremder Kurs = nur ansehen */
         .kurs-ro-badge { font-size: 0.78rem; font-weight: 700; color: #64748b; background: #f1f5f9; border-radius: 99px; padding: 0.2rem 0.6rem; white-space: nowrap; }
+        /* 🏅 Abzeichen bereit zur Übergabe / ✨ kurz davor */
+        .kind-flag { font-size: 0.66rem; font-weight: 800; border-radius: 99px; padding: 0.12rem 0.45rem; white-space: nowrap; flex-shrink: 0; }
+        .kind-flag-bereit { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+        .kind-flag-fast { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+        .kurs-bereit { color: #b45309; font-weight: 800; white-space: nowrap; }
         .lb-ro-note { font-size: 0.8rem; font-weight: 600; color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; }
         .niveau-chip-ro { cursor: default; opacity: 0.75; }
         .logbook-ro .lb-note, .logbook-ro .lb-anmerkung, .logbook-ro .lb-cb, .logbook-ro .lb-task-text, .logbook-ro .lb-drop, .logbook-ro .lb-stufe-komplett, .logbook-ro .lb-datum-trigger, .logbook-ro .lb-abz-datum-trigger { pointer-events: none; }
@@ -1626,6 +1631,25 @@ function hoechstesAbzeichen(kind) {
     return result;
 }
 
+// 🏅 Abzeichen „bereit zur Übergabe": höchste komplette Stufe, deren Vergabe-Datum
+// („Abzeichen erworben") noch NICHT eingetragen ist. Solange kein Datum gesetzt ist,
+// gilt das Abzeichen als noch nicht überreicht → das Kind bleibt markiert. So lässt
+// sich die Übergabe bewusst auf einen späteren Termin verschieben.
+function abzeichenBereit(kind) {
+    const st = hoechstesAbzeichen(kind);
+    if (!st) return null;
+    const datum = ((kind.progress || {})[st.id] || {})['_abzeichen_datum'];
+    return datum ? null : st;
+}
+
+// ✨ Kurz vor dem Abzeichen: in der aktuellen Stufe fehlt nur noch 1 Aufgabe
+function fastGeschafft(kind) {
+    if (alleStufenFertig(kind)) return null;
+    const st = aktuelleStufe(kind);
+    const p = getStufenProgress(kind, st.id);
+    return (p.total > 0 && p.done === p.total - 1) ? st : null;
+}
+
 function kurseAmTag(tag) {
     return state.kurse.filter(k => k.wochentag === tag).sort((a, b) =>
         (a.von || '99:99').localeCompare(b.von || '99:99') || a.name.localeCompare(b.name, 'de')
@@ -1966,7 +1990,7 @@ function kursCardHTML(kurs) {
         <div class="kurs-card-head" style="background:${cf.hell}">
             <div class="kurs-head-left">
                 <div class="kurs-title" style="color:${cf.farbe}">${favStarHTML(kurs)}${esc(kurs.name)}${kursTrainerChipsHTML(kurs)}</div>
-                <div class="kurs-sub">${WOCHENTAGE[kurs.wochentag]} ${zeit}${kurs.jahrgang ? ' · ' + formatJahrgang(kurs.jahrgang, kurs.jahrgangBis) : ''}${blockLabel(kurs)} · ${kinder.length} Kind${kinder.length !== 1 ? 'er' : ''}</div>
+                <div class="kurs-sub">${WOCHENTAGE[kurs.wochentag]} ${zeit}${kurs.jahrgang ? ' · ' + formatJahrgang(kurs.jahrgang, kurs.jahrgangBis) : ''}${blockLabel(kurs)} · ${kinder.length} Kind${kinder.length !== 1 ? 'er' : ''}${(n => n ? ` · <span class="kurs-bereit" title="${n} Abzeichen bereit zur Übergabe">🏅 ${n} bereit</span>` : '')(kinder.filter(k => abzeichenBereit(k)).length)}</div>
             </div>
             <div class="kurs-actions">
                 ${ro ? `<span class="kurs-ro-badge" title="Du bist bei diesem Kurs nicht als Trainer eingetragen – nur ansehen">👁 nur ansehen</span>` : `
@@ -2008,7 +2032,14 @@ function kindSummaryInner(kind) {
     const fertig = alleStufenFertig(kind);
     const st = aktuelleStufe(kind);
     const p = getStufenProgress(kind, st.id);
-    return `<span class="kind-sum-dot" style="background:${st.farbe}"></span>
+    // 🏅 = Abzeichen komplett, aber noch kein Vergabe-Datum (bereit zur Übergabe)
+    // ✨ = nur noch 1 Aufgabe offen (kurz davor); 🏅 hat Vorrang
+    const bereit = abzeichenBereit(kind);
+    const fast = bereit ? null : fastGeschafft(kind);
+    const flag = bereit
+        ? `<span class="kind-flag kind-flag-bereit" title="„${esc(bereit.name)}" ist komplett – Abzeichen noch nicht überreicht. Im Logbuch das Datum eintragen, sobald es übergeben wurde.">🏅 ${esc(bereit.name)}</span>`
+        : (fast ? `<span class="kind-flag kind-flag-fast" title="Nur noch 1 Aufgabe bis „${esc(fast.name)}"">✨ noch 1</span>` : '');
+    return `${flag}<span class="kind-sum-dot" style="background:${st.farbe}"></span>
         <span class="kind-sum-stufe">${fertig ? 'Gold ✓' : esc(st.name)}</span>
         <div class="mini-bar"><div style="width:${p.pct}%;background:${st.farbe}"></div></div>
         <span class="kind-sum-count">${p.done}/${p.total}</span>`;
@@ -2063,7 +2094,7 @@ function logbookInnerHTML(kind) {
     return `${ro ? '<div class="lb-ro-note">👁 Fremder Kurs – nur ansehen. Änderungen sind hier nicht möglich.</div>' : ''}
         <textarea class="lb-anmerkung" placeholder="Individuelle Anmerkungen zum Kind…" onclick="event.stopPropagation()" onblur="saveKindAnmerkung('${kind.id}',this.value)">${esc(anmerkung)}</textarea>
         <div class="lb-page-title"><span class="kind-sum-dot" style="width:13px;height:13px;background:${stufe.farbe}"></span>${esc(stufe.name)}<span class="lb-page-num">Seite ${seite} von ${badges.length}</span></div>
-        ${stufeKomplett ? `<div class="lb-abz-datum-row">Abzeichen erworben: ${abzDatum
+        ${stufeKomplett ? `<div class="lb-abz-datum-row">${abzDatum ? '' : '🏅 Bereit zur Übergabe · '}Abzeichen erworben: ${abzDatum
             ? `<span class="lb-abz-datum-val" id="abz-${kind.id}-${stufe.id}" onclick="event.stopPropagation();showAbzDatumInput('${kind.id}','${stufe.id}','abz-${kind.id}-${stufe.id}')">${abzDatum}</span>`
             : `<span class="lb-abz-datum-trigger trainer-only" id="abz-${kind.id}-${stufe.id}" onclick="event.stopPropagation();showAbzDatumInput('${kind.id}','${stufe.id}','abz-${kind.id}-${stufe.id}')"></span>`
         }</div>` : ''}
