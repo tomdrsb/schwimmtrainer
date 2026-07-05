@@ -3478,6 +3478,9 @@ async function doLogout() {
 
 // Rendern (das, was der Start früher direkt gemacht hat)
 function startApp() {
+    // Start-Ansicht: zuerst die ★-Favoriten zeigen — nur wenn welche markiert sind,
+    // sonst wie bisher der heutige Wochentag (leere Favoriten-Seite wäre verwirrend).
+    if (state.kurse.some(k => k.favorit)) currentDay = 'favoriten';
     renderKurse();
 }
 
