@@ -1541,14 +1541,20 @@ function ensureStufen() {
     // Abzeichen-Editor). Bei fremd-erstellten Kursen gelten automatisch die Chips des
     // Kurs-Erstellers (defsForKurs) — in beide Richtungen.
     if (!Array.isArray(state.kategorien)) state.kategorien = [];
-    // Einmalige Bereinigung: die früher automatisch verteilten Standard-Themen (und deren
-    // Kopplungen an den Aufgaben) aus dem Konto entfernen. Selbst angelegte Themen sind
-    // nie betroffen — eigene IDs beginnen mit 'kat_' und kollidieren nicht mit dieser Liste.
+    // Bereinigung: die früher automatisch verteilten Standard-Themen UND die von der alten
+    // Wiederherstellung angelegten „Eigenes Thema N"-Platzhalter (samt Kopplungen an den
+    // Aufgaben) aus dem Konto entfernen → die Chip-Welt startet komplett leer.
+    // Selbst benannte Themen bleiben: Standard-IDs sind fix, und ein umbenannter Platzhalter
+    // passt nicht mehr auf das „Eigenes Thema N"-Muster.
     const ALTE_DEFAULT_IDS = new Set(['technik','ausdauer','tieftauchen','streckentauchen','springen','wasser','selbstrettung','theorie','tauchen','rettung','sonstiges']);
-    state.kategorien = state.kategorien.filter(k => !ALTE_DEFAULT_IDS.has(k.id));
+    const raus = new Set();
+    state.kategorien.forEach(k => {
+        if (ALTE_DEFAULT_IDS.has(k.id) || /^Eigenes Thema \d+$/.test((k.name || '').trim())) raus.add(k.id);
+    });
+    state.kategorien = state.kategorien.filter(k => !raus.has(k.id));
     state.badges.forEach(b => (b.anforderungen || []).forEach(a => {
-        if (Array.isArray(a.kats)) a.kats = a.kats.filter(id => !ALTE_DEFAULT_IDS.has(id));
-        if (a.kat && ALTE_DEFAULT_IDS.has(a.kat)) delete a.kat;
+        if (Array.isArray(a.kats)) a.kats = a.kats.filter(id => !raus.has(id));
+        if (a.kat && raus.has(a.kat)) delete a.kat;
     }));
 }
 
