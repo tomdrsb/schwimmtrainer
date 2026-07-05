@@ -1513,6 +1513,24 @@ function ensureStufen() {
     if (!Array.isArray(state.kategorien) || !state.kategorien.length) {
         state.kategorien = JSON.parse(JSON.stringify(KATEGORIEN_DEFAULT));
     }
+    // Verwaiste Themen-Zuordnungen retten: verweist eine Aufgabe auf ein Thema, das es in
+    // state.kategorien nicht (mehr) gibt (z.B. selbst vergebene Themen, die nie synchronisiert
+    // wurden), wird es als Platzhalter-Thema wiederhergestellt → die ZUORDNUNG bleibt erhalten,
+    // Name/Farbe kann der Nutzer neu setzen. Idempotent (einmal angelegt = nicht erneut).
+    const ALT_NAMEN = { tauchen: 'Tauchen', rettung: 'Rettung', sonstiges: 'Sonstiges' };
+    const vorhanden = new Set(state.kategorien.map(k => k.id));
+    let wieder = 0;
+    state.badges.forEach(b => (b.anforderungen || []).forEach(a => {
+        const kats = Array.isArray(a.kats) ? a.kats : (a.kat ? [a.kat] : []);
+        kats.forEach(id => {
+            if (id && !vorhanden.has(id)) {
+                vorhanden.add(id);
+                wieder++;
+                state.kategorien.push({ id, icon: '🏷️', farbe: KAT_PALETTE[state.kategorien.length % KAT_PALETTE.length],
+                    name: ALT_NAMEN[id] || ('Eigenes Thema ' + wieder) });
+            }
+        });
+    }));
 }
 
 function normalizeState(s) {
