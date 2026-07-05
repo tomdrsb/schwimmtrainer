@@ -414,25 +414,20 @@
         /* Bearbeitungsrechte: fremder Kurs = nur ansehen */
         .kurs-ro-badge { font-size: 0.78rem; font-weight: 700; color: #64748b; background: #f1f5f9; border-radius: 99px; padding: 0.2rem 0.6rem; white-space: nowrap; }
         /* 🏅 Abzeichen bereit zur Übergabe / ✨ kurz davor */
-        .kind-flag { font-size: 0.66rem; font-weight: 800; border-radius: 99px; padding: 0.12rem 0.45rem; white-space: nowrap; flex-shrink: 0; }
-        .kind-flag-bereit { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
-        .kind-flag-fast { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
-        .kurs-bereit { color: #b45309; font-weight: 800; white-space: nowrap; }
-        /* 📝 Notizzettel */
-        .nz-sec { font-size: 0.82rem; font-weight: 800; color: #0f172a; margin: 0.9rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 2px solid #e2e8f0; }
-        .nz-sec:first-child { margin-top: 0; }
-        .nz-row { background: #fffdf5; border: 1px solid #f1e9d2; border-radius: 10px; padding: 0.55rem 0.7rem; margin-bottom: 0.55rem; }
-        .nz-kind { font-size: 0.85rem; font-weight: 700; color: #1e293b; margin-bottom: 0.25rem; }
-        .nz-kurs { font-size: 0.72rem; font-weight: 600; color: #94a3b8; }
-        .nz-status { font-size: 0.78rem; color: #475569; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
-        .nz-wann-row { display: flex; align-items: center; gap: 0.45rem; font-size: 0.76rem; font-weight: 700; color: #92700c; flex-wrap: wrap; }
-        .nz-wann { flex: 1; min-width: 150px; border: 1.5px solid #fcd34d; background: #fffbeb; border-radius: 8px; padding: 0.3rem 0.55rem; font-size: 0.8rem; font-family: inherit; color: #374151; }
-        .nz-wann:focus { outline: none; border-color: #f59e0b; background: white; }
-        .nz-wann:disabled { background: #f8fafc; border-color: #e2e8f0; color: #94a3b8; }
+        /* 📝 Notizzettel — pro Kind: roter Merker + Notizfeld */
+        .nz-kurs-head { font-size: 0.82rem; font-weight: 800; color: #0f172a; margin: 0.9rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 2px solid #e2e8f0; }
+        .nz-kurs-head:first-child { margin-top: 0; }
+        .nz-row { margin-bottom: 0.7rem; }
+        .nz-kopf { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.3rem; }
+        .nz-name { font-size: 0.9rem; font-weight: 700; color: #1e293b; }
+        .nz-abz { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; font-weight: 600; color: #64748b; white-space: nowrap; cursor: pointer; }
+        .nz-abz.ro { cursor: default; }
+        .nz-kreis { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e1; background: white; cursor: pointer; padding: 0; flex-shrink: 0; transition: background 0.12s, border-color 0.12s; }
+        .nz-kreis:hover:not(:disabled) { border-color: #f87171; }
+        .nz-kreis.an { background: #ef4444; border-color: #ef4444; }
+        .nz-kreis:disabled { cursor: default; opacity: 0.6; }
         .nz-text:disabled { background: #f8fafc; color: #64748b; }
         .nz-leer { font-size: 0.8rem; color: #94a3b8; font-style: italic; padding: 0.3rem 0.2rem 0.6rem; }
-        .nz-add { display: flex; gap: 0.45rem; align-items: center; margin-top: 0.3rem; }
-        .nz-add select { flex: 1; min-width: 0; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0.35rem 0.5rem; font-size: 0.8rem; font-family: inherit; color: #374151; background: white; }
         .lb-ro-note { font-size: 0.8rem; font-weight: 600; color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; }
         .niveau-chip-ro { cursor: default; opacity: 0.75; }
         .logbook-ro .lb-note, .logbook-ro .lb-cb, .logbook-ro .lb-task-text, .logbook-ro .lb-drop, .logbook-ro .lb-stufe-komplett, .logbook-ro .lb-datum-trigger, .logbook-ro .lb-abz-datum-trigger { pointer-events: none; }
@@ -1651,25 +1646,6 @@ function hoechstesAbzeichen(kind) {
     return result;
 }
 
-// 🏅 Abzeichen „bereit zur Übergabe": höchste komplette Stufe, deren Vergabe-Datum
-// („Abzeichen erworben") noch NICHT eingetragen ist. Solange kein Datum gesetzt ist,
-// gilt das Abzeichen als noch nicht überreicht → das Kind bleibt markiert. So lässt
-// sich die Übergabe bewusst auf einen späteren Termin verschieben.
-function abzeichenBereit(kind) {
-    const st = hoechstesAbzeichen(kind);
-    if (!st) return null;
-    const datum = ((kind.progress || {})[st.id] || {})['_abzeichen_datum'];
-    return datum ? null : st;
-}
-
-// ✨ Kurz vor dem Abzeichen: in der aktuellen Stufe fehlt nur noch 1 Aufgabe
-function fastGeschafft(kind) {
-    if (alleStufenFertig(kind)) return null;
-    const st = aktuelleStufe(kind);
-    const p = getStufenProgress(kind, st.id);
-    return (p.total > 0 && p.done === p.total - 1) ? st : null;
-}
-
 function kurseAmTag(tag) {
     return state.kurse.filter(k => k.wochentag === tag).sort((a, b) =>
         (a.von || '99:99').localeCompare(b.von || '99:99') || a.name.localeCompare(b.name, 'de')
@@ -2010,7 +1986,7 @@ function kursCardHTML(kurs) {
         <div class="kurs-card-head" style="background:${cf.hell}">
             <div class="kurs-head-left">
                 <div class="kurs-title" style="color:${cf.farbe}">${favStarHTML(kurs)}${esc(kurs.name)}${kursTrainerChipsHTML(kurs)}</div>
-                <div class="kurs-sub">${WOCHENTAGE[kurs.wochentag]} ${zeit}${kurs.jahrgang ? ' · ' + formatJahrgang(kurs.jahrgang, kurs.jahrgangBis) : ''}${blockLabel(kurs)} · ${kinder.length} Kind${kinder.length !== 1 ? 'er' : ''}${(n => n ? ` · <span class="kurs-bereit" title="${n} Abzeichen bereit zur Übergabe">🏅 ${n} bereit</span>` : '')(kinder.filter(k => abzeichenBereit(k)).length)}</div>
+                <div class="kurs-sub">${WOCHENTAGE[kurs.wochentag]} ${zeit}${kurs.jahrgang ? ' · ' + formatJahrgang(kurs.jahrgang, kurs.jahrgangBis) : ''}${blockLabel(kurs)} · ${kinder.length} Kind${kinder.length !== 1 ? 'er' : ''}</div>
             </div>
             <div class="kurs-actions">
                 ${ro ? `<span class="kurs-ro-badge" title="Du bist bei diesem Kurs nicht als Trainer eingetragen – nur ansehen">👁 nur ansehen</span>` : `
@@ -2052,14 +2028,7 @@ function kindSummaryInner(kind) {
     const fertig = alleStufenFertig(kind);
     const st = aktuelleStufe(kind);
     const p = getStufenProgress(kind, st.id);
-    // 🏅 = Abzeichen komplett, aber noch kein Vergabe-Datum (bereit zur Übergabe)
-    // ✨ = nur noch 1 Aufgabe offen (kurz davor); 🏅 hat Vorrang
-    const bereit = abzeichenBereit(kind);
-    const fast = bereit ? null : fastGeschafft(kind);
-    const flag = bereit
-        ? `<span class="kind-flag kind-flag-bereit" title="„${esc(bereit.name)}" ist komplett – Abzeichen noch nicht überreicht. Im Logbuch das Datum eintragen, sobald es übergeben wurde.">🏅 ${esc(bereit.name)}</span>`
-        : (fast ? `<span class="kind-flag kind-flag-fast" title="Nur noch 1 Aufgabe bis „${esc(fast.name)}"">✨ noch 1</span>` : '');
-    return `${flag}<span class="kind-sum-dot" style="background:${st.farbe}"></span>
+    return `<span class="kind-sum-dot" style="background:${st.farbe}"></span>
         <span class="kind-sum-stufe">${fertig ? 'Gold ✓' : esc(st.name)}</span>
         <div class="mini-bar"><div style="width:${p.pct}%;background:${st.farbe}"></div></div>
         <span class="kind-sum-count">${p.done}/${p.total}</span>`;
@@ -2112,7 +2081,7 @@ function logbookInnerHTML(kind) {
     const stufeKomplett = stufeP.total > 0 && stufeP.done === stufeP.total;
     return `${ro ? '<div class="lb-ro-note">👁 Fremder Kurs – nur ansehen. Änderungen sind hier nicht möglich.</div>' : ''}
         <div class="lb-page-title"><span class="kind-sum-dot" style="width:13px;height:13px;background:${stufe.farbe}"></span>${esc(stufe.name)}<span class="lb-page-num">Seite ${seite} von ${badges.length}</span></div>
-        ${stufeKomplett ? `<div class="lb-abz-datum-row">${abzDatum ? '' : '🏅 Bereit zur Übergabe · '}Abzeichen erworben: ${abzDatum
+        ${stufeKomplett ? `<div class="lb-abz-datum-row">Abzeichen erworben: ${abzDatum
             ? `<span class="lb-abz-datum-val" id="abz-${kind.id}-${stufe.id}" onclick="event.stopPropagation();showAbzDatumInput('${kind.id}','${stufe.id}','abz-${kind.id}-${stufe.id}')">${abzDatum}</span>`
             : `<span class="lb-abz-datum-trigger trainer-only" id="abz-${kind.id}-${stufe.id}" onclick="event.stopPropagation();showAbzDatumInput('${kind.id}','${stufe.id}','abz-${kind.id}-${stufe.id}')"></span>`
         }</div>` : ''}
@@ -2275,10 +2244,7 @@ function speicherAbzeichenDatum(kindId, stufeId, val) {
     if (!canEditKind(kind)) return;   // fremder Kurs: nur ansehen
     if (!kind.progress[stufeId]) kind.progress[stufeId] = {};
     const datum = formatVonInput(val);
-    if (datum) {
-        kind.progress[stufeId]['_abzeichen_datum'] = datum;
-        delete kind.abzeichenWann;   // Abzeichen überreicht → Erinnerung im Notizzettel erledigt
-    }
+    if (datum) kind.progress[stufeId]['_abzeichen_datum'] = datum;
     else delete kind.progress[stufeId]['_abzeichen_datum'];
     save();
 }
@@ -3097,11 +3063,10 @@ function markKategorieDone(kindId, katId) {
     if (changed) { save(); renderKurse(); }
 }
 
-// ── 📝 Notizzettel: Abzeichen-Erinnerungen + Kind-Notizen ─────────
+// ── 📝 Notizzettel: pro Kind ein roter „bekommt noch das Abzeichen"-Kreis + Notizfeld ──
 // Scope wie die Abzeichen-Statistik: der gerade gewählte Tag / ★ Favoriten / Alle.
-// Ersetzt die frühere Anmerkungs-Textarea oben im Logbuch (gleiche Daten: kind.anmerkung).
-let nzOffen = new Set();   // Kinder, für die im offenen Zettel eine neue Notiz begonnen wurde
-
+// Der Kreis ist ein manueller Merker (kind.bekommtAbzeichen); die tatsächliche
+// Abzeichen-Vergabe (mit Datum) läuft weiter übers Logbuch. Notiz = kind.anmerkung.
 function _notizzettelKurse() {
     const tag = currentDay;
     if (tag === 'alle') { const ks = []; WOCHENTAGE.forEach((_, i) => ks.push(...kurseAmTag(i))); return ks; }
@@ -3113,7 +3078,6 @@ function oeffneNotizzettel() {
     const tag = currentDay;
     const tagName = tag === 'alle' ? 'Alle Tage' : (tag === 'favoriten' ? '★ Favoriten' : WOCHENTAGE[tag]);
     document.getElementById('notizen-title').textContent = '📝 Notizzettel — ' + tagName;
-    nzOffen = new Set();
     renderNotizzettel();
     openModal('modal-notizen');
 }
@@ -3123,71 +3087,36 @@ function renderNotizzettel() {
     const body = document.getElementById('notizen-body');
     if (!kurse.length) { body.innerHTML = `<div class="nz-leer">Keine Kurse für diese Auswahl.</div>`; return; }
 
-    // 1) 🏅 Erinnerungen: Abzeichen fertig (Übergabe offen) oder nur noch 1 Aufgabe
-    let erinnerungen = '';
+    let html = '';
     kurse.forEach(kurs => {
+        const kinder = kinderImKurs(kurs.id);
+        if (!kinder.length) return;
         const ro = !canEditKurs(kurs);
-        kinderImKurs(kurs.id).forEach(kind => {
-            const bereit = abzeichenBereit(kind);
-            const fast = bereit ? null : fastGeschafft(kind);
-            if (!bereit && !fast) return;
-            const status = bereit
-                ? `<span class="kind-flag kind-flag-bereit">🏅 ${esc(bereit.name)}</span> fertig – Übergabe steht noch aus`
-                : `<span class="kind-flag kind-flag-fast">✨ noch 1</span> Aufgabe bis „${esc(fast.name)}"`;
-            erinnerungen += `<div class="nz-row">
-                <div class="nz-kind">${esc(kind.name)} <span class="nz-kurs">· ${esc(kurs.name)}</span></div>
-                <div class="nz-status">${status}</div>
-                <label class="nz-wann-row">Bekommt es ungefähr: <input class="nz-wann" value="${esc(kind.abzeichenWann || '')}" placeholder="z. B. 10.07. oder nach den Ferien" ${ro ? 'disabled' : ''} onblur="saveAbzeichenWann('${kind.id}',this.value)"></label>
+        html += `<div class="nz-kurs-head">${esc(kurs.name)}</div>`;
+        kinder.forEach(kind => {
+            const markiert = !!kind.bekommtAbzeichen;
+            html += `<div class="nz-row">
+                <div class="nz-kopf">
+                    <span class="nz-name">${esc(kind.name)}</span>
+                    <label class="nz-abz ${ro ? 'ro' : ''}">bekommt noch das Abzeichen
+                        <button type="button" class="nz-kreis ${markiert ? 'an' : ''}" ${ro ? 'disabled' : ''} onclick="toggleBekommtAbzeichen('${kind.id}')" title="Als Merker rot markieren"></button>
+                    </label>
+                </div>
+                <textarea class="nz-text" placeholder="Notiz…" ${ro ? 'disabled' : ''} onblur="saveKindAnmerkung('${kind.id}',this.value)">${esc((kind.anmerkung || '').trim())}</textarea>
             </div>`;
         });
     });
-
-    // 2) 📝 Notizen (frühere Logbuch-Anmerkungen) + neue Notiz beginnen
-    let notizen = '';
-    const ohneNotiz = [];
-    kurse.forEach(kurs => {
-        const ro = !canEditKurs(kurs);
-        kinderImKurs(kurs.id).forEach(kind => {
-            if ((kind.anmerkung || '').trim() || nzOffen.has(kind.id)) {
-                notizen += `<div class="nz-row">
-                    <div class="nz-kind">${esc(kind.name)} <span class="nz-kurs">· ${esc(kurs.name)}</span></div>
-                    <textarea class="nz-text" placeholder="Notiz zum Kind…" ${ro ? 'disabled' : ''} onblur="saveKindAnmerkung('${kind.id}',this.value)">${esc((kind.anmerkung || '').trim())}</textarea>
-                </div>`;
-            } else if (!ro) {
-                ohneNotiz.push({ id: kind.id, label: kind.name + ' · ' + kurs.name });
-            }
-        });
-    });
-    const addHTML = ohneNotiz.length ? `<div class="nz-add">
-        <select id="nz-add-select">${ohneNotiz.map(o => `<option value="${o.id}">${esc(o.label)}</option>`).join('')}</select>
-        <button class="anw-ausfall-add" onclick="nzNotizHinzu()">＋ Notiz</button>
-    </div>` : '';
-
-    body.innerHTML = `
-        <div class="nz-sec">🏅 Abzeichen-Erinnerungen</div>
-        ${erinnerungen || '<div class="nz-leer">Gerade steht keine Abzeichen-Übergabe an.</div>'}
-        <div class="nz-sec">📝 Notizen zu den Kindern</div>
-        ${notizen || '<div class="nz-leer">Noch keine Notizen.</div>'}
-        ${addHTML}`;
+    body.innerHTML = html || `<div class="nz-leer">Keine Kinder für diese Auswahl.</div>`;
 }
 
-function saveAbzeichenWann(kindId, value) {
+// Roter Merker „bekommt noch das Abzeichen" umschalten
+function toggleBekommtAbzeichen(kindId) {
     const kind = kindObj(kindId); if (!kind) return;
     if (!canEditKind(kind)) return;   // fremder Kurs: nur ansehen
-    const v = value.trim();
-    if (v) kind.abzeichenWann = v; else delete kind.abzeichenWann;
+    if (kind.bekommtAbzeichen) delete kind.bekommtAbzeichen; else kind.bekommtAbzeichen = true;
     save();
-}
-
-// Neue Notiz für ein Kind beginnen (gespeichert wird beim Verlassen des Textfelds)
-function nzNotizHinzu() {
-    const sel = document.getElementById('nz-add-select');
-    if (!sel || !sel.value) return;
-    const kindId = sel.value;
-    nzOffen.add(kindId);
-    renderNotizzettel();
-    const ta = [...document.querySelectorAll('#notizen-body .nz-text')].find(t => (t.getAttribute('onblur') || '').includes(kindId));
-    if (ta) ta.focus();
+    const btn = document.querySelector(`#notizen-body .nz-kreis[onclick*="${kindId}"]`);
+    if (btn) btn.classList.toggle('an', !!kind.bekommtAbzeichen);
 }
 
 function oeffneKursTeilen() {
