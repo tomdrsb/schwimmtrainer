@@ -1534,34 +1534,21 @@ function ensureStufen() {
         };
     });
     // Alte Entweder/Oder-Verknüpfung restlos entfernen (Feature abgeschafft)
-    // + Standard-Themen einmalig fest in die Aufgaben schreiben, damit die Chips aus den
-    //   (synchronisierten) Daten kommen statt aus der App-Version (AUFGABEN_KAT).
-    state.badges.forEach(b => (b.anforderungen || []).forEach(a => {
-        delete a.entwederOder;
-        if (!Array.isArray(a.kats) && !a.kat && AUFGABEN_KAT[a.id]) a.kats = [AUFGABEN_KAT[a.id]];
-    }));
+    state.badges.forEach(b => (b.anforderungen || []).forEach(a => { delete a.entwederOder; }));
     state.stufenVersion = STUFEN_VERSION;
-    // Themen-Chips: beim ersten Mal mit den Standard-Themen füllen (danach frei bearbeitbar)
-    if (!Array.isArray(state.kategorien) || !state.kategorien.length) {
-        state.kategorien = JSON.parse(JSON.stringify(KATEGORIEN_DEFAULT));
-    }
-    // Verwaiste Themen-Zuordnungen retten: verweist eine Aufgabe auf ein Thema, das es in
-    // state.kategorien nicht (mehr) gibt (z.B. selbst vergebene Themen, die nie synchronisiert
-    // wurden), wird es als Platzhalter-Thema wiederhergestellt → die ZUORDNUNG bleibt erhalten,
-    // Name/Farbe kann der Nutzer neu setzen. Idempotent (einmal angelegt = nicht erneut).
-    const ALT_NAMEN = { tauchen: 'Tauchen', rettung: 'Rettung', sonstiges: 'Sonstiges' };
-    const vorhanden = new Set(state.kategorien.map(k => k.id));
-    let wieder = 0;
+    // ── Themen-Chips: KEINE Vorgaben mehr ─────────────────────────
+    // Jeder Trainer legt seine Chips komplett selbst an („Themen verwalten" bzw. im
+    // Abzeichen-Editor). Bei fremd-erstellten Kursen gelten automatisch die Chips des
+    // Kurs-Erstellers (defsForKurs) — in beide Richtungen.
+    if (!Array.isArray(state.kategorien)) state.kategorien = [];
+    // Einmalige Bereinigung: die früher automatisch verteilten Standard-Themen (und deren
+    // Kopplungen an den Aufgaben) aus dem Konto entfernen. Selbst angelegte Themen sind
+    // nie betroffen — eigene IDs beginnen mit 'kat_' und kollidieren nicht mit dieser Liste.
+    const ALTE_DEFAULT_IDS = new Set(['technik','ausdauer','tieftauchen','streckentauchen','springen','wasser','selbstrettung','theorie','tauchen','rettung','sonstiges']);
+    state.kategorien = state.kategorien.filter(k => !ALTE_DEFAULT_IDS.has(k.id));
     state.badges.forEach(b => (b.anforderungen || []).forEach(a => {
-        const kats = Array.isArray(a.kats) ? a.kats : (a.kat ? [a.kat] : []);
-        kats.forEach(id => {
-            if (id && !vorhanden.has(id)) {
-                vorhanden.add(id);
-                wieder++;
-                state.kategorien.push({ id, icon: '🏷️', farbe: KAT_PALETTE[state.kategorien.length % KAT_PALETTE.length],
-                    name: ALT_NAMEN[id] || ('Eigenes Thema ' + wieder) });
-            }
-        });
+        if (Array.isArray(a.kats)) a.kats = a.kats.filter(id => !ALTE_DEFAULT_IDS.has(id));
+        if (a.kat && ALTE_DEFAULT_IDS.has(a.kat)) delete a.kat;
     }));
 }
 
@@ -2979,34 +2966,14 @@ function toggleAbzNamen(rowEl) {
 }
 
 // ── Niveau & Förderbedarf ──────────────────────────────────────────
-// Kategorien (Themen), in die die Abzeichen-Aufgaben fallen — so zählt z.B. die 25m (Seepferdchen)
-// und die 200m (Bronze) beide als „Ausdauer".
-// Standard-Themen (Chips) — werden beim ersten Start nach state.kategorien kopiert, danach frei bearbeitbar.
-const KATEGORIEN_DEFAULT = [
-    { id: 'technik',         icon: '🦵', name: 'Technik',         farbe: '#7c3aed' },
-    { id: 'ausdauer',        icon: '🏊', name: 'Ausdauer',        farbe: '#2563eb' },
-    { id: 'tieftauchen',     icon: '🤿', name: 'Tieftauchen',     farbe: '#0891b2' },
-    { id: 'streckentauchen', icon: '➡️', name: 'Streckentauchen', farbe: '#0d9488' },
-    { id: 'springen',        icon: '🤸', name: 'Springen',        farbe: '#f59e0b' },
-    { id: 'wasser',          icon: '💧', name: 'Wassergewöhnung', farbe: '#0ea5e9' },
-    { id: 'selbstrettung',   icon: '🛟', name: 'Selbstrettung',   farbe: '#dc2626' },
-    { id: 'theorie',         icon: '📋', name: 'Theorie',         farbe: '#64748b' },
-];
+// Themen (Chips), in die die Abzeichen-Aufgaben fallen — so zählt z.B. die 25m (Seepferdchen)
+// und die 200m (Bronze) beide als dasselbe Thema. Es gibt KEINE vorgegebenen Themen:
+// jeder Trainer legt seine eigenen an; bei fremd-erstellten Kursen gelten die des Erstellers.
 const KAT_PALETTE = ['#16a34a','#db2777','#ea580c','#0d9488','#7c3aed','#2563eb','#ca8a04','#0891b2','#dc2626','#4f46e5','#65a30d','#9333ea'];
 function katById(id, kategorien = state.kategorien) { return (kategorien || []).find(k => k.id === id); }
-// Standard-Zuordnung der Default-Aufgaben (Fallback, solange eine Aufgabe keine eigenen Themen hat)
-const AUFGABEN_KAT = {
-    fr1:'theorie', fr2:'wasser', fr3:'wasser', fr4:'springen', fr5:'ausdauer', fr6:'wasser', fr7:'wasser', fr8:'theorie',
-    sp1:'theorie', sp2:'wasser', sp3:'wasser', sp4:'springen', sp5:'tieftauchen', sp6:'ausdauer', sp7:'technik',
-    se1:'ausdauer', se2:'streckentauchen', se3:'technik',
-    br1:'springen', br2:'springen', br3:'ausdauer', br4:'tieftauchen', br5:'theorie',
-    si1:'springen', si2:'ausdauer', si3:'streckentauchen', si4:'selbstrettung', si5:'theorie',
-    go1:'ausdauer', go2:'technik', go3:'technik', go4:'streckentauchen', go5:'ausdauer',
-};
-// Themen (Chips) einer Aufgabe — MEHRFACH möglich. Eigene `kats` → altes `kat` → Standard-Map → keins.
+// Themen (Chips) einer Aufgabe — MEHRFACH möglich. Eigene `kats` → altes `kat` → keins.
 // Wird `kategorien` übergeben, werden gespeicherte Themen, die es dort NICHT (mehr) gibt,
-// ignoriert; bleibt dann nichts Gültiges übrig, greift die Standard-Zuordnung (AUFGABEN_KAT).
-// → robust gegen verwaiste Themen-IDs (Kategorien-Umbau / nie synchronisierte Chips).
+// ignoriert (robust gegen verwaiste Refs — z.B. gelöschte Themen).
 function aufgabeKats(anf, kategorien) {
     let result = (anf && Array.isArray(anf.kats)) ? anf.kats.slice()
                : (anf && anf.kat) ? [anf.kat] : [];
@@ -3014,7 +2981,6 @@ function aufgabeKats(anf, kategorien) {
         const valid = new Set(kategorien.map(k => k.id));
         result = result.filter(id => valid.has(id));
     }
-    if (!result.length && anf && AUFGABEN_KAT[anf.id]) result = [AUFGABEN_KAT[anf.id]];
     return result;
 }
 // Ein Auswahl-Chip (Mehrfachauswahl) für den Abzeichen-Editor
@@ -3061,6 +3027,7 @@ function toggleNiveauModus() {
 // (= wie viele Kinder pro Thema noch eine offene Aufgabe haben), absteigend sortiert.
 function foerderbedarfHTML(kinder) {
     const kategorien = defsForKurs(kinder[0] && kinder[0].kursId).kategorien;   // Themen des Kurs-Erstellers
+    if (!kategorien.length) return `<div class="kurs-bedarf"><div class="kurs-bedarf-done">🏷️ Noch keine Themen angelegt – im Abzeichen-Tab unter „Themen verwalten" eigene Chips erstellen und im Abzeichen-Editor an die Aufgaben koppeln.</div></div>`;
     const katKinder = {}; kategorien.forEach(k => katKinder[k.id] = []);
     kinder.forEach(kind => offeneKategorien(kind).forEach(id => { if (katKinder[id]) katKinder[id].push(kind); }));
     const aktiv = kategorien.filter(k => katKinder[k.id].length)
