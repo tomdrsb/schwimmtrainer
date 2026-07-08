@@ -428,6 +428,12 @@
         .nz-kreis:disabled { cursor: default; opacity: 0.6; }
         .nz-text:disabled { background: #f8fafc; color: #64748b; }
         .nz-leer { font-size: 0.8rem; color: #94a3b8; font-style: italic; padding: 0.3rem 0.2rem 0.6rem; }
+        /* 🧹 Admin-Aufräumen */
+        .auf-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.55rem; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 0.35rem; cursor: pointer; background: white; }
+        .auf-row.auf-verd { background: #fef2f2; border-color: #fecaca; }
+        .auf-cb { flex-shrink: 0; width: 17px; height: 17px; accent-color: #dc2626; }
+        .auf-name { font-size: 0.85rem; font-weight: 700; color: #1e293b; white-space: nowrap; }
+        .auf-meta { font-size: 0.72rem; color: #64748b; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .lb-ro-note { font-size: 0.8rem; font-weight: 600; color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; }
         .niveau-chip-ro { cursor: default; opacity: 0.75; }
         .logbook-ro .lb-note, .logbook-ro .lb-cb, .logbook-ro .lb-task-text, .logbook-ro .lb-drop, .logbook-ro .lb-stufe-komplett, .logbook-ro .lb-datum-trigger, .logbook-ro .lb-abz-datum-trigger { pointer-events: none; }
@@ -1190,6 +1196,20 @@
             <label style="font-size:.8rem;color:#475569;font-weight:600">Dein Anzeigename (sehen die anderen):</label>
             <input id="my-name-input" class="form-input" type="text" placeholder="z. B. Tom" onblur="saveMyName(this.value)">
         </div>
+        <button id="aufraeumen-btn" class="anw-ausfall-add" style="display:none;width:100%;margin-top:.7rem" onclick="oeffneAufraeumen()">🧹 System aufräumen (Admin)</button>
+    </div>
+</div>
+
+<!-- 🧹 Admin: Kurs-Kopien aus allen Bereichen endgültig löschen -->
+<div class="modal-bg" id="modal-aufraeumen">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 class="modal-title">🧹 System aufräumen</h2>
+            <button class="modal-close" onclick="closeModal('modal-aufraeumen')">×</button>
+        </div>
+        <p style="font-size:.86rem;color:#475569;margin-bottom:.6rem">Alle Kurse in allen Bereichen. Vorausgewählt sind <b>verdächtige Kopien</b> (liegen in einem Bereich, dem sie nicht gehören). Ausgewählte werden <b>endgültig gelöscht</b> – samt Kindern und Anwesenheit.</p>
+        <div id="aufraeumen-list"></div>
+        <button class="btn btn-danger" style="width:100%;margin-top:.7rem" onclick="aufraeumenLoeschen()">🗑 Ausgewählte endgültig löschen</button>
     </div>
 </div>
 
@@ -2379,7 +2399,7 @@ function saveKurs() {
     if (editKursId) {
         Object.assign(getKurs(editKursId), { name, trainers: trainers_, trainer: null, wochentag, jahrgang, jahrgangBis, von, bis });
     } else {
-        state.kurse.push({ id: uid(), name, trainers: trainers_, owner: (supaUser ? supaUser.id : null), wochentag, jahrgang, jahrgangBis, von, bis });
+        state.kurse.push({ id: uid(), name, trainers: trainers_, owner: (viewingId || (supaUser ? supaUser.id : null)), wochentag, jahrgang, jahrgangBis, von, bis });
     }
     currentDay = wochentag;
     save(); closeModal('modal-kurs'); renderKurse();
@@ -3191,7 +3211,9 @@ function setCloudDot(status) {            // '', 'ok', 'sync', 'err'
     if (d) d.title = { ok:'In der Cloud gespeichert ✓', sync:'Wird gespeichert…', err:'Offline — lokal gespeichert' }[status] || 'Cloud-Status';
 }
 function isEmptyState(s) {
-    return !s || ((!s.kinder || !s.kinder.length) && (!s.kurse || !s.kurse.length));
+    if (!s) return true;
+    if (s._cleanedAt) return false;   // admin-bereinigt → nie durch alte Geräte-Caches „re-migrieren"
+    return (!s.kinder || !s.kinder.length) && (!s.kurse || !s.kurse.length);
 }
 
 async function boot() {
@@ -3344,7 +3366,12 @@ function partitionState() {
         dateien:       pick(state.dateien),
         _savedAt:      state._savedAt
     };
-    const sharedBundles = sharedKurse.map(k => ({
+    // Re-Seed-Sperre: In die geteilte Ablage darf ein Bereich nur Kurse hochladen, die ihm
+    // GEHÖREN (owner) oder die er gerade wirklich aus der geteilten Ablage geladen hat
+    // (loadedSharedIds). Alte Kurs-KOPIEN in fremden Blobs (Konto-Verschmutzung) können so
+    // einen vom Besitzer gelöschten geteilten Kurs nie wieder „reanimieren".
+    const darfTeilen = (k) => loadedSharedIds.has(k.id) || !k.owner || k.owner === viewingId;
+    const sharedBundles = sharedKurse.filter(darfTeilen).map(k => ({
         course_id: k.id,
         trainers:  k.trainers,
         data: {
@@ -3429,6 +3456,8 @@ function openTrainerSwitch() {
         </button>`;
     });
     list.innerHTML = html || '<div style="color:#64748b;font-size:.9rem">Keine Trainer gefunden.</div>';
+    const ab = document.getElementById('aufraeumen-btn');
+    if (ab) ab.style.display = isAdmin ? '' : 'none';
     const ni = document.getElementById('my-name-input');
     if (ni) ni.value = myName || '';
     openModal('modal-trainer');
@@ -3464,6 +3493,101 @@ async function saveMyName(val) {
     const me = trainers.find(t => t.id === supaUser.id);
     if (me) me.name = val;
     updateTrainerUI();
+}
+
+// ── 🧹 Admin: System aufräumen ────────────────────────────────────
+// Listet JEDEN Kurs aus JEDEM Trainer-Bereich + der geteilten Ablage auf. Verdächtig =
+// Kurs liegt im persönlichen Bereich von jemandem, dem er nicht gehört (owner ≠ Bereich)
+// — das sind die alten Verschmutzungs-Kopien, die gelöschte Kurse „reanimieren".
+// Löschen entfernt den Kurs samt Kindern/Anwesenheit/Plänen endgültig aus der Ablage.
+let aufItems = [];   // { key, ort:'blob'|'shared', userId?, kursId }
+
+function trainerName(id) {
+    const t = trainers.find(x => x.id === id);
+    return t ? (t.name || t.email) : ((id || '?').slice(0, 8) + '…');
+}
+
+async function oeffneAufraeumen(client = supa) {
+    if (!isAdmin) return;
+    const list = document.getElementById('aufraeumen-list');
+    list.innerHTML = '<div class="nz-leer">Lade alle Bereiche…</div>';
+    closeModal('modal-trainer');
+    openModal('modal-aufraeumen');
+    aufItems = [];
+    try {
+        const { data: blobs, error } = await client.from('trainer_data').select('user_id,state');
+        if (error) throw error;
+        let shared = [];
+        try { const r = await client.from('shared_courses').select('course_id,trainers,data'); shared = r.data || []; } catch(e2) {}
+        let html = '';
+        (blobs || []).forEach(row => {
+            const kurse = ((row.state || {}).kurse) || [];
+            if (!kurse.length) return;
+            html += `<div class="nz-kurs-head">Bereich: ${esc(trainerName(row.user_id))}</div>`;
+            kurse.forEach(k => {
+                const verd = !!(k.owner && k.owner !== row.user_id);
+                const key = 'b_' + row.user_id + '_' + k.id;
+                aufItems.push({ key, ort: 'blob', userId: row.user_id, kursId: k.id });
+                html += aufRowHTML(key, k, verd, verd ? 'gehört ' + trainerName(k.owner) : '');
+            });
+        });
+        if (shared.length) {
+            html += `<div class="nz-kurs-head">Geteilte Ablage (getaggte Kurse)</div>`;
+            shared.forEach(row => {
+                const k = (row.data || {}).kurs || { id: row.course_id, name: row.course_id };
+                const key = 's_' + row.course_id;
+                aufItems.push({ key, ort: 'shared', kursId: row.course_id });
+                html += aufRowHTML(key, k, false, 'getaggt: ' + (row.trainers || []).map(trainerName).join(', '));
+            });
+        }
+        list.innerHTML = html || '<div class="nz-leer">Keine Kurse im System.</div>';
+    } catch(e) {
+        list.innerHTML = '<div class="nz-leer">Fehler beim Laden: ' + esc(e.message || e) + '</div>';
+    }
+}
+
+function aufRowHTML(key, kurs, verdaechtig, hinweis) {
+    const tag = (kurs.wochentag != null && WOCHENTAGE[kurs.wochentag]) ? WOCHENTAGE[kurs.wochentag] : '?';
+    return `<label class="auf-row${verdaechtig ? ' auf-verd' : ''}">
+        <input type="checkbox" class="auf-cb" data-key="${key}" ${verdaechtig ? 'checked' : ''}>
+        <span class="auf-name">${esc(kurs.name || '?')}</span>
+        <span class="auf-meta">${tag}${kurs.von ? ' ' + kurs.von : ''}${hinweis ? ' · ' + esc(hinweis) : ''}${verdaechtig ? ' · ⚠️ Kopie' : ''}</span>
+    </label>`;
+}
+
+async function aufraeumenLoeschen(client = supa) {
+    if (!isAdmin) return;
+    const keys = new Set([...document.querySelectorAll('#aufraeumen-list .auf-cb:checked')].map(c => c.dataset.key));
+    const auswahl = aufItems.filter(i => keys.has(i.key));
+    if (!auswahl.length) { alert('Nichts ausgewählt.'); return; }
+    if (!confirm(auswahl.length + ' Einträge ENDGÜLTIG aus dem System löschen?\n\nKurs samt Kindern und Anwesenheit – NICHT rückgängig machbar!')) return;
+    try {
+        await flushPush();   // keine verspätete Speicherung dazwischenfunken lassen
+        // 1) Persönliche Bereiche: pro Bereich EINMAL chirurgisch bereinigen
+        const proBlob = {};
+        auswahl.filter(i => i.ort === 'blob').forEach(i => (proBlob[i.userId] = proBlob[i.userId] || new Set()).add(i.kursId));
+        for (const uid_ of Object.keys(proBlob)) {
+            const ids = proBlob[uid_];
+            const { data: row, error } = await client.from('trainer_data').select('state').eq('user_id', uid_).maybeSingle();
+            if (error || !row) continue;
+            const s = row.state || {};
+            s.kurse  = (s.kurse  || []).filter(k => !ids.has(k.id));
+            s.kinder = (s.kinder || []).filter(k => !ids.has(k.kursId));
+            ['anwesenheit', 'wochenplaene', 'dateien', 'abschnittCount'].forEach(f => ids.forEach(id => { if (s[f]) delete s[f][id]; }));
+            s._cleanedAt = Date.now();   // Marker: nie wieder durch alte Geräte-Caches „re-migrieren"
+            const r2 = await client.from('trainer_data').update({ state: s, updated_at: new Date().toISOString() }).eq('user_id', uid_);
+            if (r2.error) throw r2.error;
+        }
+        // 2) Geteilte Ablage
+        for (const i of auswahl.filter(x => x.ort === 'shared')) {
+            const r3 = await client.from('shared_courses').delete().eq('course_id', i.kursId);
+            if (r3.error) throw r3.error;
+        }
+        closeModal('modal-aufraeumen');
+        alert(auswahl.length + ' Einträge endgültig gelöscht.');
+        await loadFromCloud();   // eigene Ansicht frisch laden (ohne die Gelöschten)
+        renderKurse();
+    } catch(e) { alert('Fehler beim Löschen: ' + (e.message || e)); }
 }
 
 async function doLogout() {
