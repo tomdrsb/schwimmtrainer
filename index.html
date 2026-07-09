@@ -426,6 +426,7 @@
         .nz-kreis:hover:not(:disabled) { border-color: #f87171; }
         .nz-kreis.an { background: #ef4444; border-color: #ef4444; }
         .nz-kreis:disabled { cursor: default; opacity: 0.6; }
+        .lb-merker-row { display: flex; justify-content: flex-end; margin-bottom: 0.35rem; }
         .nz-text:disabled { background: #f8fafc; color: #64748b; }
         .nz-leer { font-size: 0.8rem; color: #94a3b8; font-style: italic; padding: 0.3rem 0.2rem 0.6rem; }
         /* 🧹 Admin-Aufräumen */
@@ -2100,6 +2101,10 @@ function logbookInnerHTML(kind) {
     const stufeP = getStufenProgress(kind, stufe.id);
     const stufeKomplett = stufeP.total > 0 && stufeP.done === stufeP.total;
     return `${ro ? '<div class="lb-ro-note">👁 Fremder Kurs – nur ansehen. Änderungen sind hier nicht möglich.</div>' : ''}
+        <div class="lb-merker-row"><label class="nz-abz${ro ? ' ro' : ''}" onclick="event.stopPropagation()">bekommt noch das Abzeichen
+            <button type="button" class="nz-kreis${kind.bekommtAbzeichen ? ' an' : ''}" ${ro ? 'disabled' : ''} onclick="event.stopPropagation();toggleBekommtAbzeichen('${kind.id}')" title="Als Merker rot markieren"></button>
+        </label></div>
+        <textarea class="nz-text" placeholder="Notiz…" ${ro ? 'disabled' : ''} onclick="event.stopPropagation()" onblur="saveKindAnmerkung('${kind.id}',this.value)">${esc((kind.anmerkung || '').trim())}</textarea>
         <div class="lb-page-title"><span class="kind-sum-dot" style="width:13px;height:13px;background:${stufe.farbe}"></span>${esc(stufe.name)}<span class="lb-page-num">Seite ${seite} von ${badges.length}</span></div>
         ${stufeKomplett ? `<div class="lb-abz-datum-row">Abzeichen erworben: ${abzDatum
             ? `<span class="lb-abz-datum-val" id="abz-${kind.id}-${stufe.id}" onclick="event.stopPropagation();showAbzDatumInput('${kind.id}','${stufe.id}','abz-${kind.id}-${stufe.id}')">${abzDatum}</span>`
@@ -3135,8 +3140,9 @@ function toggleBekommtAbzeichen(kindId) {
     if (!canEditKind(kind)) return;   // fremder Kurs: nur ansehen
     if (kind.bekommtAbzeichen) delete kind.bekommtAbzeichen; else kind.bekommtAbzeichen = true;
     save();
-    const btn = document.querySelector(`#notizen-body .nz-kreis[onclick*="${kindId}"]`);
-    if (btn) btn.classList.toggle('an', !!kind.bekommtAbzeichen);
+    // alle sichtbaren Kreise dieses Kindes aktualisieren (Notizzettel UND Logbuch)
+    document.querySelectorAll(`.nz-kreis[onclick*="${kindId}"]`).forEach(btn =>
+        btn.classList.toggle('an', !!kind.bekommtAbzeichen));
 }
 
 function oeffneKursTeilen() {
