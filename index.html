@@ -2672,8 +2672,14 @@ function kindPDFBlock(kind) {
         ? `<div style="font-size:8.5px;color:#334155;background:#f1f5f9;border-left:3px solid #94a3b8;padding:3px 7px;margin-top:5px;border-radius:3px">📝 <b>Anmerkung:</b> ${esc(anmerkung)}</div>`
         : '';
 
+    // 🔴 Roter Merker „bekommt noch das Abzeichen" (aus Logbuch/Notizzettel)
+    const merkerZeile = kind.bekommtAbzeichen
+        ? `<div style="display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:99px;padding:2px 8px;margin-bottom:4px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444"></span>bekommt noch das Abzeichen</div>`
+        : '';
+
     return `<div style="border-bottom:1px solid #f0f0f0;padding:7px 10px;page-break-inside:avoid">
         <div style="font-size:12px;font-weight:700;margin-bottom:4px">${esc(kind.name)}</div>
+        ${merkerZeile}
         <div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:4px">${bubbles}</div>
         ${abzeichenZeile}
         <div style="font-size:9px;color:#475569;font-weight:600;margin-bottom:3px">${stufenLabel}</div>
